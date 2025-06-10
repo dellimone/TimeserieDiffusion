@@ -30,9 +30,11 @@ class TimeSeriesDDPM:
         batch_size = full_series.shape[0]
 
         # Sample random timesteps
+        # t.shape == [batch_size]
         t = torch.randint(0, self.noise_scheduler.num_timesteps, (batch_size,), device=self.device)
 
         # Add noise
+        # noise.shape == [batch_size, seq_lenght]
         noise = torch.randn_like(full_series)
         noisy_series = self.noise_scheduler.q_sample(full_series, t, mask, noise)
 
@@ -104,3 +106,22 @@ class TimeSeriesDDPM:
             x = self.p_sample(x, t_batch, condition, mask)
 
         return x
+
+# Example usage and testing
+if __name__ == "__main__":
+    from torch.utils.data import DataLoader
+    from models.mlp import MLPDenoiser
+
+    from dataset import SyntheticTimeSeriesDataset
+    from noise_scheduler import NoiseScheduler
+
+    dataset = SyntheticTimeSeriesDataset()
+
+    dataloader = DataLoader(dataset, batch_size=4, shuffle=True)
+    batch = next(iter(dataloader))
+    noise_scheduler = NoiseScheduler()
+    denoiser = MLPDenoiser(seq_length=64)
+    ddp = TimeSeriesDDPM(denoiser, noise_scheduler, device='cpu')
+    ddp.training_step(batch)
+
+
