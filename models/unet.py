@@ -180,12 +180,10 @@ class Upsample1D(nn.Module):
 
 
 class UNet1D(nn.Module):
-    """1D U-Net denoiser for time series"""
+    """1D U-Net denoiser for time series - accepts single channel 2D inputs"""
 
     def __init__(self,
-                 in_channels: int = 1,
                  model_channels: int = 128,
-                 out_channels: int = 1,
                  num_res_blocks: int = 2,
                  attention_resolutions: tuple = (2, 4),
                  channel_mult: tuple = (1, 2, 4),
@@ -198,9 +196,10 @@ class UNet1D(nn.Module):
         if time_embed_dim is None:
             time_embed_dim = model_channels * 4
 
-        self.in_channels = in_channels
+        # Fixed to single channel input/output
+        self.in_channels = 1
+        self.out_channels = 1
         self.model_channels = model_channels
-        self.out_channels = out_channels
         self.num_res_blocks = num_res_blocks
         self.attention_resolutions = attention_resolutions
         self.channel_mult = channel_mult
@@ -216,10 +215,10 @@ class UNet1D(nn.Module):
         )
 
         # Condition embedding (for conditioning on input)
-        self.cond_embed = nn.Conv1d(in_channels, model_channels, 1)
+        self.cond_embed = nn.Conv1d(1, model_channels, 1)
 
         # Input projection
-        self.input_proj = nn.Conv1d(in_channels, model_channels, 3, padding=1)
+        self.input_proj = nn.Conv1d(1, model_channels, 3, padding=1)
 
         # Build encoder layers
         self.down_blocks = nn.ModuleList()
@@ -293,16 +292,23 @@ class UNet1D(nn.Module):
 
         # Output projection
         self.out_norm = nn.GroupNorm(8, ch)
-        self.out_conv = nn.Conv1d(ch, out_channels, 3, padding=1)
+        self.out_conv = nn.Conv1d(ch, 1, 3, padding=1)
 
     def forward(self, x: torch.Tensor, timesteps: torch.Tensor,
                 condition: torch.Tensor = None) -> torch.Tensor:
         """
         Args:
-            x: (batch, channels, length) - noisy input
+            x: (batch, length) - noisy input
             timesteps: (batch,) - diffusion timesteps
-            condition: (batch, channels, length) - conditioning signal
+            condition: (batch, length) - conditioning signal
+        Returns:
+            output: (batch, length) - denoised output
         """
+
+        # Add channel dimension: (batch, length) -> (batch, 1, length)
+        x = x.unsqueeze(1)
+        if condition is not None:
+            condition = condition.unsqueeze(1)
 
         # Time embedding
         time_emb = self.time_embed(timesteps)
@@ -355,7 +361,8 @@ class UNet1D(nn.Module):
         h = F.silu(h)
         h = self.out_conv(h)
 
-        return h
+        # Remove channel dimension: (batch, 1, length) -> (batch, length)
+        return h.squeeze(1)
 
 
 # Example usage and testing
@@ -365,28 +372,31 @@ if __name__ == "__main__":
 
     # Create model
     model = UNet1D(
-        in_channels=1,
         model_channels=64,
-        out_channels=1,
         num_res_blocks=2,
         attention_resolutions=(2, 4),
         channel_mult=(1, 2, 4),
         num_heads=4
     ).to(device)
 
-    # Test inputs
+    # Test inputs - now 2D tensors (batch, length)
     batch_size = 4
     seq_length = 64
 
-    x = torch.randn(batch_size, 1, seq_length).to(device)
+    x = torch.randn(batch_size, seq_length).to(device)
     timesteps = torch.randint(0, 1000, (batch_size,)).to(device)
-    condition = torch.randn(batch_size, 1, seq_length).to(device)
+    condition = torch.randn(batch_size, seq_length).to(device)
 
     # Forward pass
     with torch.no_grad():
         output = model(x, timesteps, condition)
         print(f"Input shape: {x.shape}")
-        print(f"Output shape: {output, output.shape}")
+        print(f"Output shape: {output.shape}")
+        print(f"Timesteps shape: {timesteps.shape}")
+        print(f"Condition shape: {condition.shape}")
         print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
 
-    print("UNet1D implementation test passed!")
+    # Test without condition
+    with torch.no_grad():
+        output_no_cond = model(x, timesteps)
+        print(f"Output shape (no condition): {output_no_cond.shape}")
