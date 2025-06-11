@@ -2,6 +2,7 @@ import torch
 from matplotlib import pyplot as plt
 
 from noise_scheduler import NoiseScheduler
+from model.unet import SinusoidalPositionalEmbedding
 
 def visualize_forward_diffusion(
     scheduler: NoiseScheduler,
@@ -46,3 +47,48 @@ def visualize_forward_diffusion(
     plt.suptitle('Diffusion Forward Noising Process Visualization', fontsize=16)
     plt.tight_layout(rect=[0, 0.03, 1, 0.95]) # Adjust rect for suptitle
     plt.show()
+
+
+def visualize_positional_embedding(embedding_dim: int, max_time_steps: int):
+    """
+    Visualizes the sinusoidal positional embeddings for a given dimension and number of time steps.
+    """
+    # Create the embedding module
+    pos_embedder = SinusoidalPositionalEmbedding(embedding_dim)
+
+    # Generate time steps
+    time_steps = torch.arange(max_time_steps, dtype=torch.float32)
+
+    # Get the embeddings
+    embeddings = pos_embedder(time_steps)
+
+    # Convert to numpy for plotting
+    embeddings_np = embeddings.detach().cpu().numpy()
+
+    print(f"Embedding shape for dim={embedding_dim}, max_time_steps={max_time_steps}: {embeddings_np.shape}")
+
+    # Plotting
+    plt.figure(figsize=(15, 8))
+
+    # Plot each embedding dimension over time steps
+    for i in range(min(embedding_dim, 20)):  # Plot up to 20 dimensions for clarity
+        plt.plot(time_steps.numpy(), embeddings_np[:, i], label=f'Dim {i}')
+
+    plt.title(f'Sinusoidal Positional Embeddings (Dim={embedding_dim})')
+    plt.xlabel('Time Step (Position)')
+    plt.ylabel('Embedding Value')
+    plt.legend(loc='upper right', bbox_to_anchor=(1.15, 1))
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+    # --- Heatmap Visualization ---
+    plt.figure(figsize=(12, 10))
+    plt.imshow(embeddings_np.T, cmap='viridis', origin='lower', aspect='auto',
+               extent=[0, max_time_steps - 1, 0, embedding_dim - 1])
+    plt.colorbar(label='Embedding Value')
+    plt.title(f'Sinusoidal Positional Embeddings Heatmap (Dim={embedding_dim})')
+    plt.xlabel('Time Step (Position)')
+    plt.ylabel('Embedding Dimension')
+    plt.show()
+
