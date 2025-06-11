@@ -5,19 +5,27 @@ import math
 
 
 class SinusoidalPositionalEmbedding(nn.Module):
-    """Sinusoidal Positional Embedding for time steps."""
+    """Creates sinusoidal embeddings for timestep encoding in diffusion models."""
 
-    def __init__(self, dim: int):
+    def __init__(self, embedding_dim: int):
         super().__init__()
-        self.dim = dim
+        self.embedding_dim = embedding_dim
 
-    def forward(self, time: torch.Tensor) -> torch.Tensor:
-        device = time.device
-        half_dim = self.dim // 2
-        embeddings = math.log(10000) / (half_dim - 1)
-        embeddings = torch.exp(torch.arange(half_dim, device=device) * -embeddings)
-        embeddings = time[:, None] * embeddings[None, :]
-        embeddings = torch.cat((embeddings.sin(), embeddings.cos()), dim=-1)
+    def forward(self, timesteps: torch.Tensor) -> torch.Tensor:
+        """Convert timesteps to sinusoidal embeddings."""
+        device = timesteps.device
+        half_dim = self.embedding_dim // 2
+
+        # Create frequency scaling factors
+        frequencies = torch.exp(
+            -torch.log(torch.tensor(10000.0)) *
+            torch.arange(half_dim, device=device) / half_dim
+        )
+
+        # Apply frequencies to timesteps
+        args = timesteps[:, None] * frequencies[None, :]
+        embeddings = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
+
         return embeddings
 
 
