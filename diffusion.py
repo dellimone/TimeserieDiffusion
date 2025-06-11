@@ -107,21 +107,4 @@ class TimeSeriesDDPM:
 
         return x
 
-# Example usage and testing
-if __name__ == "__main__":
-    from torch.utils.data import DataLoader
-    from models.mlp import MLPDenoiser
-
-    from dataset import SyntheticTimeSeriesDataset
-    from noise_scheduler import NoiseScheduler
-
-    dataset = SyntheticTimeSeriesDataset()
-
-    dataloader = DataLoader(dataset, batch_size=4, shuffle=True)
-    batch = next(iter(dataloader))
-    noise_scheduler = NoiseScheduler()
-    denoiser = MLPDenoiser(seq_length=64)
-    ddp = TimeSeriesDDPM(denoiser, noise_scheduler, device='cpu')
-    ddp.training_step(batch)
-
 
