@@ -1,7 +1,7 @@
 import torch
 from matplotlib import pyplot as plt
 
-from noise_scheduler import NoiseScheduler
+from model.noise_scheduler import NoiseScheduler
 from model.unet import SinusoidalPositionalEmbedding
 
 def visualize_forward_diffusion(
