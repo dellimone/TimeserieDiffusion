@@ -1,54 +1,98 @@
-import numpy as np
 import torch
-from matplotlib import pyplot as plt
+import matplotlib.pyplot as plt
+import numpy as np
+from typing import Optional
 
-from model.diffusion import TimeSeriesDDPM
-from dataset import SyntheticTimeSeriesDataset
 
+def evaluate_model(ddpm_model, test_dataset, num_samples: int = 4, num_inference_steps: Optional[int] = None):
+    """
+    Evaluate and visualize time series diffusion model results
 
-def evaluate_model(model: TimeSeriesDDPM, dataset: SyntheticTimeSeriesDataset,
-                   num_samples: int = 5, num_inference_steps: int = None):
-    """Evaluate model and create visualizations"""
+    Args:
+        ddpm_model: TimeSeriesDDPM model instance
+        test_dataset: Dataset containing test samples
+        num_samples: Number of samples to evaluate and visualize
+        num_inference_steps: Number of inference steps for sampling (uses model default if None)
+    """
 
-    model.denoiser.eval()
+    # Set model to evaluation mode
+    ddpm_model.denoiser.eval()
 
-    fig, axes = plt.subplots(num_samples, 1, figsize=(12, 2 * num_samples))
+    # Collect samples for evaluation
+    results = []
+
+    with torch.no_grad():
+        for i in range(min(num_samples, len(test_dataset))):
+            # Get test sample
+            sample = test_dataset[i]
+
+            # Prepare batch (add batch dimension)
+            condition = sample['condition'].unsqueeze(0).to(ddpm_model.device)
+            mask = sample['mask'].unsqueeze(0).to(ddpm_model.device)
+            full_series = sample['full_series'].unsqueeze(0).to(ddpm_model.device)
+            target = sample['target'].unsqueeze(0).to(ddpm_model.device)
+
+            # Generate prediction using diffusion model
+            predicted = ddpm_model.sample(condition, mask, num_inference_steps)
+
+            # Store results
+            results.append({
+                'condition': condition.cpu().squeeze(0),
+                'target': target.cpu().squeeze(0),
+                'predicted': predicted.cpu().squeeze(0),
+                'mask': mask.cpu().squeeze(0),
+                'full_series': full_series.cpu().squeeze(0)
+            })
+
+    # Create visualization
+    fig, axes = plt.subplots(num_samples, 1, figsize=(15, 4 * num_samples))
     if num_samples == 1:
         axes = [axes]
 
-    with torch.no_grad():
-        for i in range(num_samples):
-            sample = dataset[i]
+    for i, result in enumerate(results):
+        ax = axes[i]
 
-            condition = sample['condition'].unsqueeze(0).to(model.device)
-            mask = sample['mask'].unsqueeze(0).to(model.device)
-            full_series = sample['full_series'].numpy()
+        # Extract data
+        condition = result['condition'].numpy().flatten()
+        target = result['target'].numpy().flatten()
+        predicted = result['predicted'].numpy().flatten()
+        mask = result['mask'].numpy().flatten()
 
-            # Generate prediction
-            generated = model.sample(condition, mask, num_inference_steps)
-            generated = generated.cpu().numpy()[0]
+        # Find the split point (where mask changes from True to False)
+        split_idx = np.where(~mask)[0][0] if np.any(~mask) else len(condition)
 
-            # Plot
-            x_axis = np.arange(len(full_series))
-            axes[i].plot(x_axis, full_series, 'b-', label='Ground Truth', alpha=0.7)
-            axes[i].plot(x_axis, generated, 'r--', label='Generated', alpha=0.7)
+        # Create x-axis
+        x_total = np.arange(len(condition))
+        x_known = x_total[:split_idx]
+        x_target = x_total[split_idx:]
 
-            # Highlight conditioning vs target regions
-            condition_region = mask.cpu().numpy()[0] == 1
-            target_region = mask.cpu().numpy()[0] == 0
+        # Plot known/condition part
+        ax.plot(x_known, condition[:split_idx], 'b-', linewidth=2, label='Known/Condition', marker='o', markersize=3)
 
-            # Get y-limits for filling
-            ymin, ymax = axes[i].get_ylim()
+        # Plot target (ground truth)
+        if len(x_target) > 0:
+            ax.plot(x_target, target, 'g-', linewidth=2, label='Ground Truth', marker='s', markersize=3)
 
-            axes[i].fill_between(x_axis, ymin, ymax, where=condition_region,
-                                 alpha=0.2, color='green', label='Conditioning')
-            axes[i].fill_between(x_axis, ymin, ymax, where=target_region,
-                                 alpha=0.2, color='red', label='Target')
+            # Plot prediction
+            ax.plot(x_target, predicted[split_idx:], 'r--', linewidth=2, label='Predicted', marker='^', markersize=3)
 
-            axes[i].legend()
-            axes[i].set_title(f'Sample {i + 1} - {dataset.task_type.capitalize()}')
-            axes[i].grid(True, alpha=0.3)
-            axes[i].set_ylim(ymin, ymax)
+        # Add vertical line at split point
+        ax.axvline(x=split_idx - 0.5, color='gray', linestyle=':', alpha=0.7, label='Prediction Start')
+
+        # Formatting
+        ax.set_title(f'Sample {i + 1}: Time Series Prediction')
+        ax.set_xlabel('Time Step')
+        ax.set_ylabel('Value')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+
+        # Calculate and display metrics for the predicted part
+        if len(x_target) > 0:
+            mse = np.mean((target - predicted[split_idx:]) ** 2)
+            mae = np.mean(np.abs(target - predicted[split_idx:]))
+            ax.text(0.02, 0.98, f'MSE: {mse:.4f}\nMAE: {mae:.4f}',
+                    transform=ax.transAxes, verticalalignment='top',
+                    bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
 
     plt.tight_layout()
     plt.show()
