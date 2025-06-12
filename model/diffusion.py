@@ -3,24 +3,19 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Dict, Optional
 
-from noise_scheduler import NoiseScheduler
+from model.noise_scheduler import NoiseScheduler
 
-# ======================== DIFFUSION MODEL ========================
 
 class TimeSeriesDDPM:
     """Main diffusion model class"""
 
-    def __init__(self,
-                 denoiser: nn.Module,
-                 noise_scheduler: NoiseScheduler,
-                 device: str = 'cpu'):
+    def __init__(self, denoiser: nn.Module, noise_scheduler: NoiseScheduler, device: str = 'cpu'):
 
         self.denoiser = denoiser.to(device)
         self.noise_scheduler = noise_scheduler
         self.device = device
 
-    def training_step(self,
-                      batch: Dict[str, torch.Tensor]) -> torch.Tensor:
+    def training_step(self, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
         """Single training step"""
 
         full_series = batch['full_series'].to(self.device)
@@ -30,11 +25,9 @@ class TimeSeriesDDPM:
         batch_size = full_series.shape[0]
 
         # Sample random timesteps
-        # t.shape == [batch_size]
         t = torch.randint(0, self.noise_scheduler.num_timesteps, (batch_size,), device=self.device)
 
         # Add noise
-        # noise.shape == [batch_size, seq_lenght]
         noise = torch.randn_like(full_series)
         noisy_series = self.noise_scheduler.q_sample(full_series, t, mask, noise)
 
@@ -42,28 +35,23 @@ class TimeSeriesDDPM:
         predicted_noise = self.denoiser(noisy_series, t, condition)
 
         # Compute loss only on target regions (where mask == 0)
-        loss_mask = (1 - mask)
+        loss_mask = ~mask
         loss = F.mse_loss(predicted_noise, noise, reduction='none')
         loss = (loss * loss_mask).sum() / loss_mask.sum()
 
         return loss
 
     @torch.no_grad()
-    def p_sample(self,
-                 x: torch.Tensor,
-                 t: torch.Tensor,
-                 condition: torch.Tensor,
-                 mask: torch.Tensor):
+    def p_sample(self, x: torch.Tensor, t: torch.Tensor, condition: torch.Tensor, mask: torch.Tensor):
         """Single reverse diffusion step"""
-        batch_size = x.shape[0]
 
         # Predict noise
         predicted_noise = self.denoiser(x, t, condition)
 
-        # Get coefficients
-        alpha_t = self.noise_scheduler.alphas[t].view(-1, 1)
-        alpha_cumprod_t = self.noise_scheduler.alphas_cumprod[t].view(-1, 1)
-        beta_t = self.noise_scheduler.betas[t].view(-1, 1)
+        # Get coefficients and reshape for broadcasting (B, 1, 1)
+        alpha_t = self.noise_scheduler.alphas[t].view(-1, 1, 1)
+        alpha_cumprod_t = self.noise_scheduler.alphas_cumprod[t].view(-1, 1, 1)
+        beta_t = self.noise_scheduler.betas[t].view(-1, 1, 1)
 
         # Compute mean
         coeff1 = 1 / alpha_t.sqrt()
@@ -72,31 +60,28 @@ class TimeSeriesDDPM:
 
         # Add noise (except for t=0)
         if t[0] > 0:
-            posterior_variance = self.noise_scheduler.posterior_variance[t].view(-1, 1)
+            posterior_variance = self.noise_scheduler.posterior_variance[t].view(-1, 1, 1)
             noise = torch.randn_like(x)
             x_prev = mean + posterior_variance.sqrt() * noise
         else:
             x_prev = mean
 
         # Re-impose conditioning
-        x_prev = condition * mask + x_prev * (1 - mask)
+        x_prev = condition * mask + x_prev * (~mask)
 
         return x_prev
 
     @torch.no_grad()
-    def sample(self,
-               condition: torch.Tensor,
-               mask: torch.Tensor,
-               num_inference_steps: Optional[int] = None):
+    def sample(self, condition: torch.Tensor, mask: torch.Tensor, num_inference_steps: Optional[int] = None):
         """Generate samples using reverse diffusion"""
         if num_inference_steps is None:
             num_inference_steps = self.noise_scheduler.num_timesteps
 
-        batch_size, seq_len = condition.shape
+        batch_size, channels, seq_len = condition.shape
 
         # Start with pure noise in target regions
-        x = torch.randn(batch_size, seq_len, device=self.device)
-        x = condition * mask + x * (1 - mask)
+        x = torch.randn(batch_size, channels, seq_len, device=self.device)
+        x = condition * mask + x * (~mask)
 
         # Reverse diffusion
         timesteps = torch.linspace(self.noise_scheduler.num_timesteps - 1, 0, num_inference_steps, dtype=torch.long)
@@ -106,5 +91,42 @@ class TimeSeriesDDPM:
             x = self.p_sample(x, t_batch, condition, mask)
 
         return x
+
+if __name__ == '__main__':
+    from model.unet import UNet1D
+
+    batch_size = 4
+    channels = 1
+    seq_len = 16
+    cond_len = 8
+
+    x = torch.randn(batch_size, channels, seq_len)
+    mask = torch.ones_like(x, dtype=torch.bool)
+    mask[:, :, cond_len:] = False
+    condition = x * mask
+    target = x[:, :, :cond_len]
+
+    batch = {'full_series': x, 'condition': condition, 'mask': mask, 'target': target}
+
+    print(f"batch['full_series].shape: {batch['full_series'].shape}")
+    print(f"batch['condition'].shape: {batch['condition'].shape}")
+    print(f"batch['target'].shape: {batch['target'].shape}")
+    print(f"batch['mask'].shape: {batch['mask'].shape}")
+
+    print(batch)
+
+    noiser = NoiseScheduler()
+    denoiser = UNet1D(
+        in_channels=1,
+        out_channels=1,
+        model_channels=64,
+        num_res_blocks=2,
+        attention_resolutions=(2, 4),
+        channel_mult=(1, 2, 4),
+        num_heads=4
+    )
+
+    ddpm = TimeSeriesDDPM(denoiser, noiser)
+    ddpm.training_step(batch)
 
 
