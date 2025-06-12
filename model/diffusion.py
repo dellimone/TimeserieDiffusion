@@ -96,7 +96,7 @@ if __name__ == '__main__':
     from model.unet import UNet1D
 
     batch_size = 4
-    channels = 1
+    channels = 2
     seq_len = 16
     cond_len = 8
 
@@ -117,8 +117,8 @@ if __name__ == '__main__':
 
     noiser = NoiseScheduler()
     denoiser = UNet1D(
-        in_channels=1,
-        out_channels=1,
+        in_channels=channels,
+        out_channels=channels,
         model_channels=64,
         num_res_blocks=2,
         attention_resolutions=(2, 4),
@@ -127,6 +127,17 @@ if __name__ == '__main__':
     )
 
     ddpm = TimeSeriesDDPM(denoiser, noiser)
-    ddpm.training_step(batch)
+    print('='*50)
+    print('ddpm training step')
+    print('='*50)
+
+    print(ddpm.training_step(batch))
+
+    print('=' * 50)
+    print('ddpm sample')
+    print('=' * 50)
+
+    print(ddpm.sample(condition, mask,1).shape)
+
 
 
