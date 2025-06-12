@@ -27,9 +27,6 @@ def train_model(model: TimeSeriesDDPM,
         min_lr=1e-6
     )
 
-    # Best model saving variable
-    best_val_loss = float('inf')
-
     # Store losses
     train_losses = []
     val_losses = []
