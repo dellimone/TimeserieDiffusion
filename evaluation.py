@@ -2,14 +2,12 @@ import numpy as np
 import torch
 from matplotlib import pyplot as plt
 
-from diffusion import TimeSeriesDDPM
+from model.diffusion import TimeSeriesDDPM
 from dataset import SyntheticTimeSeriesDataset
 
 
-# ======================== EVALUATION AND VISUALIZATION ========================
-
 def evaluate_model(model: TimeSeriesDDPM, dataset: SyntheticTimeSeriesDataset,
-                   num_samples: int = 5, num_inference_steps: int = 50):
+                   num_samples: int = 5, num_inference_steps: int = None):
     """Evaluate model and create visualizations"""
 
     model.denoiser.eval()
