@@ -2,7 +2,6 @@ import torch
 import numpy as np
 from torch.utils.data import Dataset
 
-
 class SyntheticTimeSeriesDataset(Dataset):
     """Generate synthetic 1D time series for diffusion model training"""
 
@@ -74,7 +73,6 @@ class SyntheticTimeSeriesDataset(Dataset):
                 for t in range(1, self.seq_length):
                     series[t] = series[t-1] + theta * (mu - series[t-1]) * dt + sigma * np.sqrt(dt) * np.random.normal(0, 1)
 
-
             # Normalize to [-1, 1]
             series = (series - series.mean()) / (series.std() + 1e-8)
             series = np.clip(series, -3, 3) / 3  # Clip to -3,3 std deviations and then scale to -1,1
@@ -93,7 +91,7 @@ class SyntheticTimeSeriesDataset(Dataset):
             if self.target_length < 0:
                 raise ValueError("seq_length must be greater than or equal to condition_length for forecasting.")
 
-            target = series[self.condition_length:]
+            target = series.copy()  # Return full series as target
             mask = np.concatenate(
                 [np.ones(self.condition_length, dtype=bool), np.zeros(self.target_length, dtype=bool)])
 
@@ -104,7 +102,7 @@ class SyntheticTimeSeriesDataset(Dataset):
         if self.task_type == 'imputation':
             condition = series.copy()
             mask = np.ones(self.seq_length, dtype=bool)
-            target_values_for_masked_segments = []
+            target = series.copy()  # Return full series as target
 
             # Determine number of gaps: 2 to 4, but not more than seq_length // 5 to ensure space
             num_gaps = np.random.randint(2, min(5, max(2, self.seq_length // 5)))
@@ -145,17 +143,8 @@ class SyntheticTimeSeriesDataset(Dataset):
                         segment_indices = np.arange(start_candidate, end_candidate)
                         condition[segment_indices] = 0.0  # Mask by setting to zero
                         mask[segment_indices] = False
-                        target_values_for_masked_segments.append(series[segment_indices])
                         gap_found = True
                     attempts += 1
-
-            # The 'target' tensor contains the true values for ALL masked positions, concatenated.
-            if len(target_values_for_masked_segments) > 0:
-                target = np.concatenate(target_values_for_masked_segments)
-            else:
-                # If no gaps were created (e.g., very short sequence or failed attempts),
-                # return an empty array for target.
-                target = np.array([], dtype=np.float32)
 
         return {
             'full_series': torch.tensor(series, dtype=torch.float32).unsqueeze(0),
