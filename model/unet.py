@@ -483,12 +483,6 @@ class UNet1D(nn.Module):
         Returns:
             Denoised output tensor of shape (batch, out_channels, length)
         """
-        # Handle both 2D (batch, length) and 3D (batch, channels, length) inputs
-        if x.dim() == 2:
-            # Add channel dimension for backward compatibility
-            x = x.unsqueeze(1)
-            if condition is not None:
-                condition = condition.unsqueeze(1)
 
         # Ensure input has correct number of channels
         if x.shape[1] != self.in_channels:
@@ -550,11 +544,7 @@ class UNet1D(nn.Module):
         h = F.silu(h)
         h = self.out_conv(h)
 
-        # Remove channel dimension if output should be 2D (for backward compatibility)
-        if self.out_channels == 1 and h.shape[1] == 1:
-            return h.squeeze(1)
-        else:
-            return h
+        return h
 
 
 # Example usage and testing
@@ -578,15 +568,15 @@ if __name__ == "__main__":
     batch_size = 4
     seq_length = 64
 
-    # Test with 2D input
-    x_2d = torch.randn(batch_size, seq_length).to(device)
+    # Test with single channel input
+    x_single = torch.randn(batch_size, 1, seq_length).to(device)
     timesteps = torch.randint(0, 1000, (batch_size,)).to(device)
-    condition_2d = torch.randn(batch_size, seq_length).to(device)
+    condition_single = torch.randn(batch_size, 1, seq_length).to(device)
 
     with torch.no_grad():
-        output_2d = model_single(x_2d, timesteps, condition_2d)
-        print(f"2D Input shape: {x_2d.shape}")
-        print(f"2D Output shape: {output_2d.shape}")
+        output_single = model_single(x_single, timesteps, condition_single)
+        print(f"Input shape: {x_single.shape}")
+        print(f"Output shape: {output_single.shape}")
         print(f"Single channel model parameters: {sum(p.numel() for p in model_single.parameters()):,}")
 
     # Test 2: Multi-channel
@@ -602,14 +592,14 @@ if __name__ == "__main__":
         dropout=0.1
     ).to(device)
 
-    # Test with 3D input
-    x_3d = torch.randn(batch_size, 3, seq_length).to(device)
-    condition_3d = torch.randn(batch_size, 3, seq_length).to(device)
+    # Test with multi channel input
+    x_multi = torch.randn(batch_size, 3, seq_length).to(device)
+    condition_multi = torch.randn(batch_size, 3, seq_length).to(device)
 
     with torch.no_grad():
-        output_3d = model_multi(x_3d, timesteps, condition_3d)
-        print(f"3D Input shape: {x_3d.shape}")
-        print(f"3D Output shape: {output_3d.shape}")
+        output_multi = model_multi(x_multi, timesteps, condition_multi)
+        print(f"Input shape: {x_multi.shape}")
+        print(f"Output shape: {output_multi.shape}")
         print(f"Multi-channel model parameters: {sum(p.numel() for p in model_multi.parameters()):,}")
 
     # Test 3: Different input/output channels
@@ -637,7 +627,7 @@ if __name__ == "__main__":
     # Test 4: No conditioning
     print("\n=== Test 4: No Conditioning ===")
     with torch.no_grad():
-        output_no_cond = model_multi(x_3d, timesteps)
+        output_no_cond = model_multi(x_multi, timesteps)
         print(f"Output shape (no condition): {output_no_cond.shape}")
 
     print("\n=== All tests completed successfully! ===")
