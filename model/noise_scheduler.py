@@ -3,7 +3,6 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 
-# ======================== NOISE SCHEDULING ========================
 
 class NoiseScheduler:
     """Handles noise scheduling for diffusion process"""
@@ -14,7 +13,7 @@ class NoiseScheduler:
                  schedule_type: str = 'linear',
                  device: Optional[torch.device] = None):
         self.num_timesteps = num_timesteps
-        self.device = device # Store the device
+        self.device = device
 
         if schedule_type == 'linear':
             self.betas = self._linear_schedule(beta_start, beta_end, num_timesteps)
@@ -53,11 +52,38 @@ class NoiseScheduler:
         if noise is None:
             noise = torch.randn_like(x_start)
 
-        sqrt_alphas_cumprod_t = self.alphas_cumprod[t].sqrt().view(-1, 1)
-        sqrt_one_minus_alphas_cumprod_t = (1 - self.alphas_cumprod[t]).sqrt().view(-1, 1)
+        # Reshape for broadcasting (B, 1, 1)
+        sqrt_alphas_cumprod_t = self.alphas_cumprod[t].sqrt().view(-1, 1, 1)
+        sqrt_one_minus_alphas_cumprod_t = (1 - self.alphas_cumprod[t]).sqrt().view(-1, 1, 1)
 
         # Apply noise only where mask is 0 (target regions)
         noisy_sample = sqrt_alphas_cumprod_t * x_start + sqrt_one_minus_alphas_cumprod_t * noise
 
         # Keep original values where mask is 1 (conditioning regions)
-        return x_start * mask + noisy_sample * (1 - mask)
+        return x_start * mask + noisy_sample * (~mask)
+
+if __name__ == '__main__':
+    torch.manual_seed(0)
+    batch_size = 2
+    channels = 2
+    seq_len = 16
+    cond_len = 8
+    num_timesteps = 10
+
+    x = torch.randn(batch_size, channels, seq_len, dtype=torch.float32)
+    noise = torch.randn_like(x)
+    mask = torch.ones_like(x, dtype=torch.bool)
+    mask[:, :, cond_len:] = False
+    t = torch.randint(1, 10, (batch_size,))
+    noiser = NoiseScheduler(num_timesteps=num_timesteps)
+
+    print(f"x = {x}")
+    print(f"noise = {noise}")
+    print(f"mask = {mask}")
+    print(f"t = {t}")
+
+    noisy_sample = noiser.q_sample(x, t, mask)
+
+    print(f"noisy_sample = {noisy_sample}")
+
+
