@@ -71,7 +71,7 @@ if __name__ == '__main__':
 
     from torch.utils.data import DataLoader
 
-    csv_path = 'data/pollution.csv'  # Replace with your dataset path
+    csv_path = '../data/pollution.csv'  # Replace with your dataset path
     missing_channels: Tuple[int, ...] = (0,)
     missing_num: Tuple[int, ...] = (2 * 24,)
     task_type = 'forecasting'

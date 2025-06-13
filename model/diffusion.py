@@ -73,7 +73,7 @@ class TimeSeriesDDPM:
 
     @torch.no_grad()
     def sample(self, condition: torch.Tensor, mask: torch.Tensor, num_inference_steps: Optional[int] = None):
-        """Generate samples using reverse diffusion"""
+        """Generate samples plots using reverse diffusion"""
         if num_inference_steps is None:
             num_inference_steps = self.noise_scheduler.num_timesteps
 

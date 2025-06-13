@@ -10,8 +10,8 @@ def evaluate_model(ddpm_model, test_dataset, num_samples: int = 4, num_inference
 
     Args:
         ddpm_model: TimeSeriesDDPM model instance.
-        test_dataset: Dataset containing test samples.
-        num_samples: Number of samples to evaluate and visualize.
+        test_dataset: Dataset containing test samples plots.
+        num_samples: Number of samples plots to evaluate and visualize.
         num_inference_steps: Number of inference steps for sampling (uses model default if None).
     """
 
@@ -101,8 +101,8 @@ def evaluate_model_multi(ddpm_model, test_dataset, num_samples: int = 4, num_inf
 
     Args:
         ddpm_model: TimeSeriesDDPM model instance.
-        test_dataset: Dataset containing test samples.
-        num_samples: Number of samples to evaluate and visualize.
+        test_dataset: Dataset containing test samples plots.
+        num_samples: Number of samples plots to evaluate and visualize.
         num_inference_steps: Number of inference steps for sampling (uses model default if None).
     """
 
