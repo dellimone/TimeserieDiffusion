@@ -45,6 +45,8 @@ def visualize_forward_diffusion(scheduler: NoiseScheduler, time_serie: torch.Ten
     plt.suptitle('Diffusion Forward Noising Process Visualization', fontsize=16)
     plt.tight_layout(rect=[0, 0.03, 1, 0.95]) # Adjust rect for suptitle
     plt.show()
+    plt.savefig('synthetic_timeseries_noisy.svg', format='svg', bbox_inches='tight', dpi=300)
+
 
 def visualize_positional_embedding(embedding_dim: int, max_time_steps: int):
     """
