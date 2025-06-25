@@ -53,8 +53,6 @@ The training objective is to optimize the neural network to accurately predict t
     └── vizUtil.py
 ```
 
-## Usage
-> TODO
 
 ## Model Architecture
 
@@ -64,6 +62,3 @@ The U-Net is exceptionally well-suited for generative tasks like this because it
 1. **The Encoder (Down-sampling Path)**.  The encoder acts like a feature extractor. It takes the noisy time series as input and progressively down-samples it using a series of convolutional layers. At each step, the time series becomes shorter, but its feature representation becomes deeper. This process forces the network to capture the broader, low-frequency patterns of the time series—such as its overall trend, seasonality, and general shape.
 2. **The Decoder (Up-sampling Path)**. The decoder's job is to reconstruct the estimated noise from the compressed, high-level features created by the encoder. It progressively up-samples the feature maps, moving from a coarse representation back to the original time series length.
 3. **Skip Connections**. This is the U-Net's defining feature. Skip connections create a direct link between the encoder and decoder at corresponding resolutions. These connections allow the decoder to access not just the high-level abstract features but also the fine-grained, high-frequency details (like sharp peaks or subtle textures) that were captured by the early encoder layers. For time series, this is critical for generating realistic, non-blurry results and preserving the subtle nuances of the original data.
-
-## Temporal and Conditional Embedding in UNet1D
-
